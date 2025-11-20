@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UD12 - Decodifica Etichette CLP e Gestione Sostanze Pericolose</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 20px;
+        }
+
+        h1 {
+            color: #2d3748;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .phase-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .phase-step {
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .phase-step.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .phase-step.completed {
+            background: #48bb78;
+            color: white;
+        }
+
+        .phase-step.inactive {
+            background: #e2e8f0;
+            color: #a0aec0;
+        }
+
+        .info-box {
+            background: #f7fafc;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+        }
+
+        .info-box h2 {
+            color: #667eea;
+            font-size: 1.3em;
+            margin-bottom: 10px;
+        }
+
+        .info-box p {
+            color: #4a5568;
+            line-height: 1.6;
+        }
+
+        /* FASE 1 - DRAG & DROP PITTOGRAMMI */
+        .phase-1, .phase-2 {
+            display: none;
+        }
+
+        .phase-1.active, .phase-2.active {
+            display: block;
+        }
+
+        .pictograms-bank {
+            background: #edf2f7;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+
+        .pictograms-bank h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .pictograms-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 15px;
+            justify-items: center;
+        }
+
+        .pictogram {
+            width: 80px;
+            height: 80px;
+            background: white;
+            border: 3px solid #cbd5e0;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
+            transition: all 0.3s;
+            padding: 5px;
+        }
+
+        .pictogram:active {
+            cursor: grabbing;
+        }
+
+        .pictogram.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+
+        .pictogram:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .pictogram-icon {
+            font-size: 2.5em;
+        }
+
+        .pictogram-code {
+            font-size: 0.7em;
+            color: #718096;
+            margin-top: 3px;
+            font-weight: bold;
+        }
+
+        .substances-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .substance-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+
+        .substance-card:hover {
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.15);
+        }
+
+        .substance-header {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .drop-zone {
+            min-height: 120px;
+            background: #f7fafc;
+            border: 3px dashed #cbd5e0;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .drop-zone.drag-over {
+            background: #ebf8ff;
+            border-color: #667eea;
+            transform: scale(1.02);
+        }
+
+        .drop-zone.filled {
+            border-style: solid;
+            border-color: #48bb78;
+            background: #f0fff4;
+        }
+
+        .dropped-pictogram {
+            width: 70px;
+            height: 70px;
+            background: white;
+            border: 2px solid #48bb78;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            padding: 5px;
+        }
+
+        .remove-pictogram {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #f56565;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+            cursor: pointer;
+            border: 2px solid white;
+        }
+
+        .remove-pictogram:hover {
+            background: #c53030;
+        }
+
+        /* FASE 2 - MATCHING */
+        .matching-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+
+        .matching-header {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .assigned-pictograms {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 8px;
+        }
+
+        .assigned-pictograms .pictogram {
+            cursor: default;
+        }
+
+        .matching-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .matching-item {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .matching-item label {
+            font-weight: bold;
+            color: #4a5568;
+            font-size: 0.95em;
+        }
+
+        .matching-item select {
+            padding: 12px;
+            border: 2px solid #cbd5e0;
+            border-radius: 8px;
+            font-size: 1em;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .matching-item select:hover {
+            border-color: #667eea;
+        }
+
+        .matching-item select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .submit-section {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #e2e8f0;
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 18px 60px;
+            font-size: 1.2em;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .feedback {
+            display: none;
+            margin-top: 30px;
+            padding: 30px;
+            border-radius: 12px;
+            animation: slideIn 0.5s;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .feedback.show {
+            display: block;
+        }
+
+        .feedback.excellent {
+            background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);
+        }
+
+        .feedback.good {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+        }
+
+        .feedback.poor {
+            background: linear-gradient(135deg, #fab1a0 0%, #ff7675 100%);
+        }
+
+        .feedback-title {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .score {
+            font-size: 3em;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .error-list {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .error-item {
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #f56565;
+            background: #fff5f5;
+        }
+
+        @media (max-width: 1024px) {
+            .substances-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .matching-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚠️ UD12 - Sostanze Pericolose: CLP e Gestione</h1>
+            <p style="color: #718096; margin-top: 10px;">Riconoscimento pittogrammi e misure di sicurezza</p>
+        </header>
+
+        <div class="phase-indicator">
+            <div class="phase-step active" id="phase1Indicator">
+                📋 FASE 1: Pittogrammi CLP
+            </div>
+            <div class="phase-step inactive" id="phase2Indicator">
+                🛡️ FASE 2: Misure di Sicurezza
+            </div>
+        </div>
+
+        <!-- FASE 1 -->
+        <div class="phase-1 active" id="phase1">
+            <div class="info-box">
+                <h2>📋 FASE 1 - Abbina i Pittogrammi CLP</h2>
+                <p>Sei il <strong>datore di lavoro</strong> e devi identificare i pittogrammi di pericolo corretti per ogni sostanza utilizzata in cantiere.</p>
+                <p style="margin-top: 10px;"><strong>Trascina i pittogrammi</strong> dalla banca sottostante nelle zone di drop delle sostanze. Alcune sostanze richiedono più pittogrammi.</p>
+            </div>
+
+            <div class="pictograms-bank">
+                <h3>🏦 Banca Pittogrammi CLP (Regolamento CE 1272/2008)</h3>
+                <div class="pictograms-grid" id="pictogramsBank">
+                    <!-- Pittogrammi generati dinamicamente -->
+                </div>
+            </div>
+
+            <div class="substances-grid" id="substancesList">
+                <!-- Sostanze generate dinamicamente -->
+            </div>
+
+            <div class="submit-section">
+                <button class="submit-btn" id="submitPhase1">✓ Verifica Pittogrammi</button>
+            </div>
+        </div>
+
+        <!-- FASE 2 -->
+        <div class="phase-2" id="phase2">
+            <div class="info-box">
+                <h2>🛡️ FASE 2 - Abbina le Misure di Sicurezza</h2>
+                <p>Ora che hai identificato i pittogrammi, seleziona per ogni sostanza le <strong>misure di sicurezza corrette</strong>: DPI, modalità di stoccaggio e smaltimento.</p>
+            </div>
+
+            <div id="matchingList">
+                <!-- Matching cards generate dinamicamente -->
+            </div>
+
+            <div class="submit-section">
+                <button class="submit-btn" id="submitPhase2">✓ Verifica Misure</button>
+            </div>
+        </div>
+
+        <div class="feedback" id="feedback">
+            <!-- Feedback generato dinamicamente -->
+        </div>
+    </div>
+
+    <script>
+        // Dati pittogrammi
+        const pictograms = [
+            { id: 'GHS02', icon: '🔥', name: 'Infiammabile' },
+            { id: 'GHS06', icon: '☠️', name: 'Tossico acuto' },
+            { id: 'GHS07', icon: '⚠️', name: 'Nocivo/Irritante' },
+            { id: 'GHS01', icon: '💥', name: 'Esplosivo' },
+            { id: 'GHS05', icon: '🧪', name: 'Corrosivo' },
+            { id: 'GHS09', icon: '🌍', name: 'Pericoloso ambiente' },
+            { id: 'GHS08', icon: '⚗️', name: 'Pericolo salute' },
+            { id: 'GHS04', icon: '🔴', name: 'Gas pressione' },
+            { id: 'GHS03', icon: '🔥💧', name: 'Comburente' }
+        ];
+
+        // Dati sostanze
+        const substances = [
+            {
+                id: 'vernice',
+                name: 'Vernice Solvente Poliuretanica',
+                correctPictograms: ['GHS02', 'GHS07', 'GHS08'],
+                dpi: 'guanti-nitrile-maschera-a2p3',
+                stoccaggio: 'armadio-ventilato',
+                smaltimento: 'hp3-infiammabile'
+            },
+            {
+                id: 'solvente',
+                name: 'Solvente Organico (Acetone)',
+                correctPictograms: ['GHS02', 'GHS07'],
+                dpi: 'guanti-nitrile-maschera-a2',
+                stoccaggio: 'armadio-bacino',
+                smaltimento: 'hp3-infiammabile'
+            },
+            {
+                id: 'bitume',
+                name: 'Bitume/Catrame',
+                correctPictograms: ['GHS08', 'GHS07'],
+                dpi: 'guanti-termici-maschera-a2p3',
+                stoccaggio: 'temperatura-controllata',
+                smaltimento: 'hp7-cancerogeno'
+            },
+            {
+                id: 'cemento',
+                name: 'Cemento in Polvere',
+                correctPictograms: ['GHS05', 'GHS07'],
+                dpi: 'guanti-maschera-ffp2',
+                stoccaggio: 'asciutto-ventilato',
+                smaltimento: 'non-pericoloso'
+            },
+            {
+                id: 'acido',
+                name: 'Acido Muriatico (HCl)',
+                correctPictograms: ['GHS05', 'GHS07'],
+                dpi: 'guanti-visiera-grembiule',
+                stoccaggio: 'separato-basi',
+                smaltimento: 'hp8-corrosivo'
+            },
+            {
+                id: 'gpl',
+                name: 'Bombola GPL',
+                correctPictograms: ['GHS02', 'GHS04'],
+                dpi: 'guanti-occhiali-ventilazione',
+                stoccaggio: 'verticale-esterno',
+                smaltimento: 'restituzione-fornitore'
+            }
+        ];
+
+        // Opzioni matching
+        const dpiOptions = {
+            '': 'Seleziona...',
+            'guanti-nitrile-maschera-a2p3': 'Guanti nitrile + Maschera A2P3 + Occhiali + Tuta tipo 5',
+            'guanti-nitrile-maschera-a2': 'Guanti nitrile + Maschera A2 + Occhiali',
+            'guanti-termici-maschera-a2p3': 'Guanti termici/nitrile + Maschera A2P3 + Visiera',
+            'guanti-maschera-ffp2': 'Guanti + Maschera FFP2 + Occhiali',
+            'guanti-visiera-grembiule': 'Guanti nitrile spessi + Visiera + Grembiule + Stivali',
+            'guanti-occhiali-ventilazione': 'Guanti + Occhiali + Area ventilata',
+            'elmetto-scarpe': 'Solo elmetto e scarpe antinfortunistiche',
+            'nessun-dpi': 'Nessun DPI specifico richiesto'
+        };
+
+        const stoccaggioOptions = {
+            '': 'Seleziona...',
+            'armadio-ventilato': 'Armadio metallico ventilato, lontano da fonti di calore',
+            'armadio-bacino': 'Armadio metallico con bacino di contenimento',
+            'temperatura-controllata': 'Area coperta, temperatura controllata < 200°C',
+            'asciutto-ventilato': 'Locale asciutto e ventilato, protetto da umidità',
+            'separato-basi': 'Separato da sostanze alcaline, contenitori chiusi',
+            'verticale-esterno': 'Posizione verticale ancorata, esterno coperto, lontano da calore',
+            'temperatura-ambiente': 'Temperatura ambiente, nessuna precauzione speciale'
+        };
+
+        const smaltimentoOptions = {
+            '': 'Seleziona...',
+            'hp3-infiammabile': 'Rifiuto pericoloso HP3 (infiammabile)',
+            'hp7-cancerogeno': 'Rifiuto pericoloso HP7 (cancerogeno)',
+            'hp8-corrosivo': 'Rifiuto pericoloso HP8 (corrosivo)',
+            'non-pericoloso': 'Rifiuto non pericoloso (se non contaminato)',
+            'restituzione-fornitore': 'Restituzione al fornitore o centro raccolta autorizzato',
+            'scarico-fognatura': 'Scarico in fognatura dopo diluizione'
+        };
+
+        // Stato del gioco
+        let phase1Assignments = {};
+        let phase2Assignments = {};
+        let draggedPictogram = null;
+
+        function initGame() {
+            renderPictograms();
+            renderSubstances();
+            setupDragAndDrop();
+        }
+
+        function renderPictograms() {
+            const bank = document.getElementById('pictogramsBank');
+            bank.innerHTML = pictograms.map(p => `
+                <div class="pictogram" draggable="true" data-pictogram-id="${p.id}">
+                    <div class="pictogram-icon">${p.icon}</div>
+                    <div class="pictogram-code">${p.id}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderSubstances() {
+            const container = document.getElementById('substancesList');
+            container.innerHTML = substances.map(s => `
+                <div class="substance-card">
+                    <div class="substance-header">${s.name}</div>
+                    <div class="drop-zone" data-substance-id="${s.id}">
+                        <em style="color: #a0aec0;">Trascina qui i pittogrammi</em>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function setupDragAndDrop() {
+            const pictogramElements = document.querySelectorAll('.pictogram');
+            const dropZones = document.querySelectorAll('.drop-zone');
+
+            pictogramElements.forEach(p => {
+                p.addEventListener('dragstart', handleDragStart);
+                p.addEventListener('dragend', handleDragEnd);
+            });
+
+            dropZones.forEach(zone => {
+                zone.addEventListener('dragover', handleDragOver);
+                zone.addEventListener('drop', handleDrop);
+                zone.addEventListener('dragleave', handleDragLeave);
+            });
+        }
+
+        function handleDragStart(e) {
+            draggedPictogram = e.target.dataset.pictogramId;
+            e.target.classList.add('dragging');
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            
+            const substanceId = e.currentTarget.dataset.substanceId;
+            const pictogram = pictograms.find(p => p.id === draggedPictogram);
+            
+            if (!phase1Assignments[substanceId]) {
+                phase1Assignments[substanceId] = [];
+            }
+            
+            // Evita duplicati
+            if (!phase1Assignments[substanceId].includes(draggedPictogram)) {
+                phase1Assignments[substanceId].push(draggedPictogram);
+                updateDropZone(substanceId);
+            }
+        }
+
+        function updateDropZone(substanceId) {
+            const zone = document.querySelector(`.drop-zone[data-substance-id="${substanceId}"]`);
+            const assigned = phase1Assignments[substanceId] || [];
+            
+            if (assigned.length > 0) {
+                zone.classList.add('filled');
+                zone.innerHTML = assigned.map(pId => {
+                    const p = pictograms.find(pic => pic.id === pId);
+                    return `
+                        <div class="dropped-pictogram">
+                            <div class="pictogram-icon" style="font-size: 2em;">${p.icon}</div>
+                            <div class="pictogram-code" style="font-size: 0.7em;">${p.id}</div>
+                            <div class="remove-pictogram" onclick="removePictogram('${substanceId}', '${pId}')">✕</div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                zone.classList.remove('filled');
+                zone.innerHTML = '<em style="color: #a0aec0;">Trascina qui i pittogrammi</em>';
+            }
+        }
+
+        function removePictogram(substanceId, pictogramId) {
+            phase1Assignments[substanceId] = phase1Assignments[substanceId].filter(id => id !== pictogramId);
+            updateDropZone(substanceId);
+        }
+
+        document.getElementById('submitPhase1').addEventListener('click', function() {
+            const results = evaluatePhase1();
+            if (results.allCorrect) {
+                document.getElementById('phase1').classList.remove('active');
+                document.getElementById('phase1Indicator').classList.remove('active');
+                document.getElementById('phase1Indicator').classList.add('completed');
+                document.getElementById('phase2').classList.add('active');
+                document.getElementById('phase2Indicator').classList.remove('inactive');
+                document.getElementById('phase2Indicator').classList.add('active');
+                renderPhase2();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                showPhase1Feedback(results);
+            }
+        });
+
+        function evaluatePhase1() {
+            let correct = 0;
+            let errors = [];
+            
+            substances.forEach(substance => {
+                const assigned = phase1Assignments[substance.id] || [];
+                const correct_set = substance.correctPictograms.sort();
+                const assigned_set = assigned.sort();
+                
+                const isCorrect = JSON.stringify(correct_set) === JSON.stringify(assigned_set);
+                
+                if (isCorrect) {
+                    correct++;
+                } else {
+                    errors.push({
+                        substance: substance.name,
+                        assigned: assigned.map(id => pictograms.find(p => p.id === id).name).join(', ') || 'Nessuno',
+                        correct: substance.correctPictograms.map(id => pictograms.find(p => p.id === id).name).join(', ')
+                    });
+                }
+            });
+            
+            return {
+                correct,
+                total: substances.length,
+                allCorrect: correct === substances.length,
+                errors
+            };
+        }
+
+        function showPhase1Feedback(results) {
+            const feedback = document.getElementById('feedback');
+            feedback.className = 'feedback poor show';
+            
+            let html = `
+                <div class="feedback-title">❌ Alcuni pittogrammi sono errati</div>
+                <div class="score">${results.correct}/${results.total} corretti</div>
+                <div class="error-list">
+                    <h3 style="margin-bottom: 15px; color: #c53030;">Errori da correggere:</h3>
+            `;
+            
+            results.errors.forEach(error => {
+                html += `
+                    <div class="error-item">
+                        <strong>${error.substance}</strong><br>
+                        Hai assegnato: ${error.assigned}<br>
+                        Corretti: <strong>${error.correct}</strong>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            feedback.innerHTML = html;
+            feedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            
+            setTimeout(() => {
+                feedback.classList.remove('show');
+            }, 5000);
+        }
+
+        function renderPhase2() {
+            const container = document.getElementById('matchingList');
+            container.innerHTML = substances.map(s => {
+                const assignedPics = (phase1Assignments[s.id] || []).map(pId => {
+                    const p = pictograms.find(pic => pic.id === pId);
+                    return `
+                        <div class="pictogram">
+                            <div class="pictogram-icon">${p.icon}</div>
+                            <div class="pictogram-code">${p.id}</div>
+                        </div>
+                    `;
+                }).join('');
+                
+                return `
+                    <div class="matching-card">
+                        <div class="matching-header">
+                            ${s.name}
+                        </div>
+                        <div class="assigned-pictograms">
+                            ${assignedPics}
+                        </div>
+                        <div class="matching-grid">
+                            <div class="matching-item">
+                                <label>🧤 DPI Richiesti:</label>
+                                <select data-substance-id="${s.id}" data-type="dpi">
+                                    ${Object.entries(dpiOptions).map(([value, label]) => 
+                                        `<option value="${value}">${label}</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                            <div class="matching-item">
+                                <label>📦 Modalità Stoccaggio:</label>
+                                <select data-substance-id="${s.id}" data-type="stoccaggio">
+                                    ${Object.entries(stoccaggioOptions).map(([value, label]) => 
+                                        `<option value="${value}">${label}</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                            <div class="matching-item">
+                                <label>♻️ Smaltimento:</label>
+                                <select data-substance-id="${s.id}" data-type="smaltimento">
+                                    ${Object.entries(smaltimentoOptions).map(([value, label]) => 
+                                        `<option value="${value}">${label}</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Listener per le select
+            document.querySelectorAll('#matchingList select').forEach(select => {
+                select.addEventListener('change', function() {
+                    const substanceId = this.dataset.substanceId;
+                    const type = this.dataset.type;
+                    if (!phase2Assignments[substanceId]) {
+                        phase2Assignments[substanceId] = {};
+                    }
+                    phase2Assignments[substanceId][type] = this.value;
+                    checkPhase2Completion();
+                });
+            });
+        }
+
+        function checkPhase2Completion() {
+            let allSelected = true;
+            substances.forEach(s => {
+                if (!phase2Assignments[s.id] || 
+                    !phase2Assignments[s.id].dpi || 
+                    !phase2Assignments[s.id].stoccaggio || 
+                    !phase2Assignments[s.id].smaltimento) {
+                    allSelected = false;
+                }
+            });
+            document.getElementById('submitPhase2').disabled = !allSelected;
+        }
+
+        document.getElementById('submitPhase2').addEventListener('click', function() {
+            const results = evaluatePhase2();
+            displayFinalFeedback(results);
+            this.style.display = 'none';
+        });
+
+        function evaluatePhase2() {
+            let correct = 0;
+            let errors = [];
+            
+            substances.forEach(substance => {
+                const assigned = phase2Assignments[substance.id] || {};
+                let substanceCorrect = 0;
+                let substanceErrors = [];
+                
+                if (assigned.dpi === substance.dpi) substanceCorrect++;
+                else substanceErrors.push(`DPI: hai scelto "${dpiOptions[assigned.dpi]}" invece di "${dpiOptions[substance.dpi]}"`);
+                
+                if (assigned.stoccaggio === substance.stoccaggio) substanceCorrect++;
+                else substanceErrors.push(`Stoccaggio: hai scelto "${stoccaggioOptions[assigned.stoccaggio]}" invece di "${stoccaggioOptions[substance.stoccaggio]}"`);
+                
+                if (assigned.smaltimento === substance.smaltimento) substanceCorrect++;
+                else substanceErrors.push(`Smaltimento: hai scelto "${smaltimentoOptions[assigned.smaltimento]}" invece di "${smaltimentoOptions[substance.smaltimento]}"`);
+                
+                if (substanceCorrect === 3) {
+                    correct++;
+                } else {
+                    errors.push({
+                        substance: substance.name,
+                        errors: substanceErrors
+                    });
+                }
+            });
+            
+            return {
+                correct,
+                total: substances.length,
+                errors
+            };
+        }
+
+        function displayFinalFeedback(results) {
+            const feedback = document.getElementById('feedback');
+            const percentage = (results.correct / results.total) * 100;
+            
+            let feedbackClass = 'poor';
+            let feedbackTitle = '❌ Da Migliorare';
+            
+            if (percentage === 100) {
+                feedbackClass = 'excellent';
+                feedbackTitle = '🎉 PERFETTO!';
+            } else if (percentage >= 66) {
+                feedbackClass = 'good';
+                feedbackTitle = '✓ BUONO';
+            }
+            
+            feedback.className = `feedback ${feedbackClass} show`;
+            
+            let html = `
+                <div class="feedback-title">${feedbackTitle}</div>
+                <div class="score">${results.correct}/${results.total} sostanze completamente corrette</div>
+            `;
+            
+            if (results.errors.length > 0) {
+                html += '<div class="error-list"><h3 style="margin-bottom: 15px; color: #c53030;">Errori rilevati:</h3>';
+                results.errors.forEach(error => {
+                    html += `
+                        <div class="error-item">
+                            <strong>${error.substance}</strong><br>
+                            ${error.errors.map(e => `• ${e}`).join('<br>')}
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            feedback.innerHTML = html;
+            feedback.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // Inizializza
+        initGame();
+    </script>
+</body>
+</html>
