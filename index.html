@@ -93,6 +93,11 @@
             transition: all 0.3s;
             padding: 5px;
         }
+        .pictogram-name {
+        display: block;
+        font-size: 11px;
+        color: black;
+        }
 
         .pictogram:active {
             cursor: grabbing;
@@ -407,6 +412,7 @@
                 <div class="pictogram" draggable="true" data-pictogram-id="${p.id}">
                     <div class="pictogram-icon">${p.icon}</div>
                     <div class="pictogram-code">${p.id}</div>
+                    <div class="pictogram-code">${p.name}</div>
                 </div>
             `).join('');
         }
